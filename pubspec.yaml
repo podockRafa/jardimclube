@@ -1,0 +1,44 @@
+name: app_jardim_clube
+description: App do Condominio Jardim Clube
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # --- FIREBASE (Banco de Dados e Login) ---
+  firebase_core: ^3.1.0  # Ajustei para uma versão estável comum, se der erro volte a sua
+  firebase_auth: ^5.1.0
+  cloud_firestore: ^5.0.0
+
+
+  # --- DESIGN E UTILIDADES ---
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10
+  intl: ^0.20.2
+  image_picker: ^1.1.2
+  flutter_image_compress: ^2.3.0 
+  
+  # --- O SALVADOR DA PÁTRIA (Cloudinary) ---
+  cloudinary_public: ^0.23.1
+
+  # Ícones extras
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Suas imagens
+  assets:
+    - assets/images/
