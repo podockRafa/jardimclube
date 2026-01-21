@@ -5,8 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloudinary_public/cloudinary_public.dart'; 
 import 'package:image_picker/image_picker.dart'; 
 import 'package:flutter/foundation.dart';
-
-// --- IMPORTANTE: Importando o cofre de segredos ---
 import '../segredos.dart'; 
 
 class TelaAbrirChamado extends StatefulWidget {
@@ -20,46 +18,68 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
   final _tituloController = TextEditingController();
   final _descricaoController = TextEditingController();
   
+  // NOVA VARIÁVEL: Local Selecionado
+  String? _localSelecionado;
+
+  // LISTA DE LOCAIS
+  final List<String> _locais = [
+    'Bloco 1', 'Bloco 2', 'Bloco 3', 'Bloco 4', 'Bloco 5', 
+    'Bloco 6', 'Bloco 7', 'Bloco 8', 'Bloco 9',
+    'Estacionamento Piscina', 'Piscina', 'Pátio Principal', 
+    'Estacionamento de Trás', 'Cantina', 'Salão de Festas', 
+    'Canteiro Lateral', 'Canteiro Frontal', 'Outro'
+  ];
+  
   bool _enviando = false;
   XFile? _imagemSelecionada; 
 
-  // --- FUNÇÃO 1: TIRAR FOTO ---
-  Future<void> _tirarFoto() async {
+  Future<void> _selecionarImagem() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? imagem = await picker.pickImage(source: ImageSource.camera, imageQuality: 50);
     
-    if (imagem != null) {
-      setState(() {
-        _imagemSelecionada = imagem;
-      });
-    }
+    await showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Tirar Foto'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final XFile? imagem = await picker.pickImage(source: ImageSource.camera, imageQuality: 50);
+                  if (imagem != null) setState(() => _imagemSelecionada = imagem);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Escolher da Galeria'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final XFile? imagem = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+                  if (imagem != null) setState(() => _imagemSelecionada = imagem);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
-  // --- FUNÇÃO 2: UPLOAD PARA CLOUDINARY (AGORA SEGURO 🔒) ---
   Future<String?> _uploadImagem() async {
     if (_imagemSelecionada == null) return null;
-
     try {
-      // AQUI ESTÁ A MUDANÇA: Usamos as variáveis do arquivo segredos.dart
-      final cloudinary = CloudinaryPublic(
-        cloudinaryCloudName,    // Vem do cofre
-        cloudinaryUploadPreset, // Vem do cofre
-        cache: false
-      );
-
+      final cloudinary = CloudinaryPublic(cloudinaryCloudName, cloudinaryUploadPreset, cache: false);
       CloudinaryResponse response = await cloudinary.uploadFile(
         CloudinaryFile.fromFile(_imagemSelecionada!.path, resourceType: CloudinaryResourceType.Image),
       );
-
       return response.secureUrl;
-
     } catch (e) {
-      print("Erro no upload Cloudinary: $e");
       return null;
     }
   }
 
-  // --- FUNÇÃO 3: SALVAR NO BANCO ---
   Future<void> _enviarChamado() async {
     if (_tituloController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dê um título ao problema!")));
@@ -70,18 +90,14 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
 
     try {
       User? usuario = FirebaseAuth.instance.currentUser;
-      
-      // 1. Tenta subir a foto primeiro (se tiver)
       String? urlFoto = await _uploadImagem(); 
-
-      // 2. Prepara os dados do usuário
       DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(usuario!.uid).get();
       Map<String, dynamic> userDados = userDoc.data() as Map<String, dynamic>? ?? {};
 
-      // 3. Salva no Firestore
       await FirebaseFirestore.instance.collection('ocorrencias').add({
         'titulo': _tituloController.text,
         'descricao': _descricaoController.text,
+        'local': _localSelecionado ?? 'Não informado', // <--- SALVANDO O LOCAL
         'autor_uid': usuario.uid,
         'autor_nome': userDados['nome'] ?? 'Morador',
         'unidade': userDados['unidade_vinculada'] ?? 'Sem unidade',
@@ -95,7 +111,6 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Chamado aberto com sucesso!"), backgroundColor: Colors.green),
       );
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro: $e")));
     } finally {
@@ -115,32 +130,29 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
             const Text("O que aconteceu?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             
-            TextField(
-              controller: _tituloController,
+            // --- NOVO CAMPO: LOCAL ---
+            DropdownButtonFormField<String>(
               decoration: const InputDecoration(
-                labelText: "Assunto (Ex: Lâmpada Queimada)",
+                labelText: "Local da Ocorrência (Opcional)", 
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.title),
+                prefixIcon: Icon(Icons.place)
               ),
+              value: _localSelecionado,
+              items: _locais.map((local) => DropdownMenuItem(value: local, child: Text(local))).toList(),
+              onChanged: (valor) => setState(() => _localSelecionado = valor),
             ),
             const SizedBox(height: 16),
+            // -------------------------
 
-            TextField(
-              controller: _descricaoController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: "Detalhes (Opcional)",
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
+            TextField(controller: _tituloController, decoration: const InputDecoration(labelText: "Assunto", border: OutlineInputBorder(), prefixIcon: Icon(Icons.title))),
+            const SizedBox(height: 16),
+            TextField(controller: _descricaoController, maxLines: 4, decoration: const InputDecoration(labelText: "Detalhes", border: OutlineInputBorder())),
             const SizedBox(height: 24),
-
             const Text("Evidência (Foto)", style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             
             InkWell(
-              onTap: _tirarFoto,
+              onTap: _selecionarImagem,
               child: Container(
                 height: 200,
                 decoration: BoxDecoration(
@@ -160,8 +172,8 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
                   ? const Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.camera_alt, size: 50, color: Colors.grey),
-                        Text("Toque para fotografar", style: TextStyle(color: Colors.grey))
+                        Icon(Icons.add_a_photo, size: 50, color: Colors.grey),
+                        Text("Toque para adicionar foto", style: TextStyle(color: Colors.grey))
                       ],
                     )
                   : null,
@@ -169,15 +181,11 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
             ),
             
             const SizedBox(height: 32),
-
             SizedBox(
               height: 50,
               child: ElevatedButton(
                 onPressed: _enviando ? null : _enviarChamado,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B4D3E),
-                  foregroundColor: Colors.white,
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B4D3E), foregroundColor: Colors.white),
                 child: _enviando 
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text("ENVIAR SOLICITAÇÃO", style: TextStyle(fontSize: 16)),

@@ -1,117 +1,135 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Para formatar a data (adicione intl no pubspec se não tiver)
+import 'package:intl/intl.dart';
+import 'tela_abrir_chamado.dart'; // Importante para o botão de "+" funcionar
 
 class TelaListaChamados extends StatelessWidget {
   const TelaListaChamados({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Painel do Síndico"),
-        backgroundColor: Colors.blueGrey,
-      ),
-      // StreamBuilder: O ouvido que fica escutando o banco de dados
-      body: StreamBuilder(
-        stream: FirebaseFirestore.instance
-            .collection('ocorrencias')
-            .orderBy('data_abertura', descending: true) // Mais recentes primeiro
-            .snapshots(),
-        builder: (context, snapshot) {
-          
-          // 1. Tratamento de erros e carregamento
-          if (snapshot.hasError) return const Center(child: Text("Erro ao carregar dados :("));
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    User? user = FirebaseAuth.instance.currentUser;
 
-          // 2. Se não tiver nenhum chamado
-          if (snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("Nenhuma ocorrência registrada."));
-          }
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Minhas Ocorrências"),
+          backgroundColor: const Color(0xFF1B4D3E),
+          foregroundColor: Colors.white,
+          bottom: const TabBar(
+            indicatorColor: Colors.orange,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: [
+              Tab(text: "EM ABERTO"),
+              Tab(text: "CONCLUÍDOS"),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // ABA 1: CHAMADOS ATIVOS (Tudo que não for CONCLUIDO ou CANCELADO)
+            _buildLista(user!.uid, isAtivo: true),
 
-          // 3. Monta a lista
-          return ListView.builder(
-            itemCount: snapshot.data!.docs.length,
-            itemBuilder: (context, index) {
-              // Pegamos os dados do documento
-              var doc = snapshot.data!.docs[index];
-              var dados = doc.data() as Map<String, dynamic>;
-
-              // Formatando a data (ex: 20/01/2026 15:30)
-              String dataFormatada = "Data desconhecida";
-              if (dados['data_abertura'] != null) {
-                Timestamp t = dados['data_abertura'];
-                dataFormatada = DateFormat('dd/MM/yyyy HH:mm').format(t.toDate());
-              }
-
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                elevation: 3,
-                child: Column(
-                  children: [
-                    // --- AQUI ESTÁ A MÁGICA DA FOTO ---
-                    if (dados['foto_url'] != null && dados['foto_url'] != "")
-                      SizedBox(
-                        height: 200,
-                        width: double.infinity,
-                        child: Image.network(
-                          dados['foto_url'], // O link do Cloudinary!
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return const Center(child: CircularProgressIndicator());
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Center(child: Icon(Icons.broken_image, size: 50, color: Colors.grey));
-                          },
-                        ),
-                      ),
-                    
-                    // --- DADOS DO TEXTO ---
-                    ListTile(
-                      title: Text(dados['titulo'] ?? "Sem título", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(dados['descricao'] ?? ""),
-                          const SizedBox(height: 5),
-                          Text("Por: ${dados['autor_nome']} em $dataFormatada", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                        ],
-                      ),
-                      trailing: _buildStatusChip(dados['status']),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+            // ABA 2: HISTÓRICO (Concluídos)
+            _buildLista(user.uid, isAtivo: false),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: const Color(0xFF1B4D3E),
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text("NOVO CHAMADO", style: TextStyle(color: Colors.white)),
+          onPressed: () {
+            Navigator.push(
+              context, 
+              MaterialPageRoute(builder: (context) => const TelaAbrirChamado())
+            );
+          },
+        ),
       ),
     );
   }
 
-  // Uma funçãozinha visual para colorir o status
-  Widget _buildStatusChip(String? status) {
-    Color cor;
-    String texto = status ?? "ABERTO";
-    
-    switch (texto.toUpperCase()) {
-      case 'CONCLUIDO':
-        cor = Colors.green;
-        break;
-      case 'EM_ANDAMENTO':
-        cor = Colors.orange;
-        break;
-      default:
-        cor = Colors.red;
-    }
+  Widget _buildLista(String uid, {required bool isAtivo}) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('ocorrencias')
+          .where('autor_uid', isEqualTo: uid)
+          // Aqui filtramos na memória ou via query composta. 
+          // Para simplificar e evitar erros de índice agora, vamos pegar tudo do usuário
+          // e filtrar visualmente no código abaixo.
+          .orderBy('data_abertura', descending: true) 
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-    return Chip(
-      label: Text(texto, style: const TextStyle(color: Colors.white, fontSize: 10)),
-      backgroundColor: cor,
-      padding: EdgeInsets.zero,
+        var docs = snapshot.data!.docs.where((doc) {
+          String status = doc['status'];
+          bool finalizado = status == 'CONCLUIDO' || status == 'CANCELADO';
+          return isAtivo ? !finalizado : finalizado;
+        }).toList();
+
+        if (docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(isAtivo ? Icons.assignment_turned_in : Icons.history, size: 60, color: Colors.grey),
+                const SizedBox(height: 10),
+                Text(
+                  isAtivo ? "Tudo certo! Nenhuma pendência." : "Nenhum histórico ainda.",
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            var dados = docs[index].data() as Map<String, dynamic>;
+            String status = dados['status'] ?? 'ABERTO';
+            Timestamp? data = dados['data_abertura'];
+            String dataFmt = data != null ? DateFormat('dd/MM/yyyy HH:mm').format(data.toDate()) : '?';
+
+            Color corStatus = Colors.orange;
+            if (status == 'EM_ANDAMENTO') corStatus = Colors.blue;
+            if (status == 'CONCLUIDO') corStatus = Colors.green;
+            if (status == 'CANCELADO') corStatus = Colors.red;
+
+            return Card(
+              elevation: 2,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(12),
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: corStatus.withOpacity(0.1), shape: BoxShape.circle),
+                  child: Icon(Icons.build, color: corStatus),
+                ),
+                title: Text(dados['titulo'] ?? 'Sem Título', style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dados['descricao'] ?? ''),
+                    const SizedBox(height: 4),
+                    Text(dataFmt, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  ],
+                ),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: corStatus, borderRadius: BorderRadius.circular(12)),
+                  child: Text(status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
