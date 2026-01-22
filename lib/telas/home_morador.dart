@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'tela_abrir_chamado.dart';
+
 import 'tela_classificados.dart';
 import 'tela_regras.dart'; 
 import 'tela_sugestoes.dart';
@@ -19,6 +19,8 @@ class HomeMorador extends StatefulWidget {
 
 class _HomeMoradorState extends State<HomeMorador> {
   User? usuarioLogado = FirebaseAuth.instance.currentUser;
+  
+  // Função auxiliar para marcar avisos como lidos no banco de dados
   
   void _editarVeiculos(Map<String, dynamic> dadosAtuais) {
     Map<String, dynamic> carro = dadosAtuais['carro'] ?? {'modelo': '', 'placa': '', 'cor': ''};
@@ -90,7 +92,7 @@ class _HomeMoradorState extends State<HomeMorador> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. STREAMBUILDER GLOBAL (Para pegar dados do usuário para o Sininho)
+    // 1. STREAMBUILDER GLOBAL
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('users').doc(usuarioLogado!.uid).snapshots(),
       builder: (context, snapshot) {
@@ -99,10 +101,15 @@ class _HomeMoradorState extends State<HomeMorador> {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        var dados = snapshot.data!.data() as Map<String, dynamic>;
-        String nome = dados['nome'] ?? 'Vizinho';
-        String bloco = dados['bloco'] ?? '?';
-        String apto = dados['unidade'] ?? '?';
+        // AQUI ESTAVA A CONFUSÃO: Padronizei o nome para 'dadosUser'
+        var dadosUser = snapshot.data!.data() as Map<String, dynamic>;
+        
+        String nome = dadosUser['nome'] ?? 'Vizinho';
+        String bloco = dadosUser['bloco'] ?? '?';
+        String apto = dadosUser['unidade'] ?? '?';
+
+        // LISTA DE AVISOS QUE O USUÁRIO JÁ LEU
+        List<dynamic> avisosLidos = dadosUser['avisos_lidos'] ?? [];
 
         return Scaffold(
           backgroundColor: Colors.grey[100],
@@ -110,7 +117,6 @@ class _HomeMoradorState extends State<HomeMorador> {
             title: const Text("Minha Casa", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             backgroundColor: const Color(0xFF1B4D3E),
             actions: [
-              // --- SININHO ---
               IconButton(
                 icon: const Icon(Icons.notifications, color: Colors.white),
                 tooltip: "Histórico de Notificações",
@@ -128,166 +134,238 @@ class _HomeMoradorState extends State<HomeMorador> {
             ],
           ),
           
-          // 2. STREAMBUILDER DO CORPO (Encomendas)
-          body: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('encomendas')
-                .where('bloco', isEqualTo: bloco)
-                .where('numero', isEqualTo: apto)
-                .where('status', isEqualTo: 'AGUARDANDO_RETIRADA')
-                .snapshots(),
-            builder: (context, encSnap) {
-              
-              bool temEncomenda = encSnap.hasData && encSnap.data!.docs.isNotEmpty;
-              int qtdEncomendas = temEncomenda ? encSnap.data!.docs.length : 0;
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    
-                    // --- CABEÇALHO ---
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 4))],
-                        border: Border.all(color: const Color(0xFF1B4D3E).withOpacity(0.1)),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                
+                // --- CABEÇALHO ---
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const[BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))],
+                    border: Border.all(color: const Color(0xFF1B4D3E).withValues(alpha:0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: const Color(0xFF1B4D3E),
+                        child: Text(bloco, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundColor: const Color(0xFF1B4D3E),
-                            child: Text(bloco, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Olá, $nome", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text("Apto $apto - Bloco $bloco", style: TextStyle(color: Colors.grey[600])),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+
+                // 2. STREAMBUILDER DE ENCOMENDAS (Laranja)
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('encomendas')
+                      .where('bloco', isEqualTo: bloco)
+                      .where('numero', isEqualTo: apto)
+                      .where('status', isEqualTo: 'AGUARDANDO_RETIRADA')
+                      .snapshots(),
+                  builder: (context, encSnap) {
+                    bool temEncomenda = encSnap.hasData && encSnap.data!.docs.isNotEmpty;
+                    int qtdEncomendas = temEncomenda ? encSnap.data!.docs.length : 0;
+
+                    if (!temEncomenda) return const SizedBox.shrink();
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      width: double.infinity,
+                      child: InkWell(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TelaHistorico(bloco: bloco, apto: apto))),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange, 
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(color: Colors.orange.withValues(alpha:0.4), blurRadius: 8, offset: const Offset(0, 4))
+                            ],
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text("Olá, $nome", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                Text("Apto $apto - Bloco $bloco", style: TextStyle(color: Colors.grey[600])),
-                              ],
-                            ),
-                          ),
-                          
-                          if (temEncomenda) 
-                            Tooltip(
-                              message: "Encomenda na Portaria",
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.shade100,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.orange)
+                          child: Row(
+                            children: [
+                              const Icon(Icons.inventory_2, color: Colors.white, size: 40),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "$qtdEncomendas Encomenda(s) Chegou!", 
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
+                                    ),
+                                    const Text(
+                                      "Toque para ver detalhes.",
+                                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                                    ),
+                                  ],
                                 ),
-                                child: const Icon(Icons.inventory_2, color: Colors.orange),
                               ),
-                            )
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-
-                    // --- ALERTA GRANDE ---
-                    if (temEncomenda)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 24),
-                        width: double.infinity,
-                        child: InkWell(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TelaHistorico(bloco: bloco, apto: apto))),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.orange, 
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(color: Colors.orange.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.inventory_2, color: Colors.white, size: 40),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "$qtdEncomendas Encomenda(s) Chegou!", 
-                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
-                                      ),
-                                      const Text(
-                                        "Toque para ver detalhes.",
-                                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
-                              ],
-                            ),
+                              const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+                            ],
                           ),
                         ),
                       ),
-                    
-                    const Text("Serviços", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1B4D3E))),
-                    const SizedBox(height: 16),
+                    );
+                  },
+                ),
 
-                    // --- GRADE DE MENUS ---
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      children: [
-                        _botaoMenu(
-                          icone: Icons.build_circle_outlined, 
-                          titulo: "Ocorrências\n(Chamados)", 
-                          cor: Colors.redAccent,
-                          acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaListaChamados())), // <--- MUDOU AQUI
+                // 3. CARD DE AVISOS (Azul) - LÓGICA DE NÃO LIDO
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('avisos').orderBy('data_postagem', descending: true).limit(10).snapshots(),
+                  builder: (context, avisoSnap) {
+                    if (!avisoSnap.hasData || avisoSnap.data!.docs.isEmpty) return const SizedBox.shrink();
+
+                    int contadorNaoLidos = 0;
+                    List<String> idsNaoLidosDesteCard = []; 
+
+                    DateTime dataLimite = DateTime.now().subtract(const Duration(days: 15));
+
+                    for (var doc in avisoSnap.data!.docs) {
+                      // Se já leu, pula
+                      if (avisosLidos.contains(doc.id)) continue;
+
+                      var d = doc.data() as Map<String, dynamic>;
+                      Timestamp? ts = d['data_postagem'];
+
+                      if (ts != null && ts.toDate().isAfter(dataLimite)) {
+                        String alcance = d['alcance_tipo'] ?? 'TODOS';
+                        String alvoBloco = (d['alcance_bloco'] ?? '').toString();
+                        String alvoApto = (d['alcance_unidade'] ?? '').toString();
+                        String meuBloco = bloco.trim();
+                        String meuApto = apto.trim();
+
+                        bool ehPraMim = false;
+                        if (alcance == 'TODOS') ehPraMim = true;
+                        if (alcance == 'BLOCO' && alvoBloco == meuBloco) ehPraMim = true;
+                        if (alcance == 'UNIDADE' && alvoBloco == meuBloco && alvoApto == meuApto) ehPraMim = true;
+
+                        if (ehPraMim) {
+                          contadorNaoLidos++;
+                          idsNaoLidosDesteCard.add(doc.id);
+                        }
+                      }
+                    }
+
+                    if (contadorNaoLidos == 0) return const SizedBox.shrink();
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      width: double.infinity,
+                      child: InkWell(
+                        onTap: () {
+                          // 1. Marca como lido e some
+                          
+                          // 2. Navega
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => TelaHistorico(bloco: bloco, apto: apto)));
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue, 
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(color: Colors.blue.withValues(alpha:0.4), blurRadius: 8, offset: const Offset(0, 4))
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.campaign, color: Colors.white, size: 40),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "$contadorNaoLidos Novo(s) Aviso(s)", 
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)
+                                    ),
+                                    const Text(
+                                      "Toque para ler e limpar.",
+                                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(width: 10, height: 10, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)),
+                            ],
+                          ),
                         ),
-                        _botaoMenu(
-                          icone: Icons.storefront,
-                          titulo: "Classificados\nInternos",
-                          cor: Colors.orange,
-                          acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaClassificados())),
-                        ),
-                        _botaoMenu(
-                          icone: Icons.directions_car,
-                          titulo: "Meus\nVeículos",
-                          cor: Colors.blueGrey,
-                          acao: () => _editarVeiculos(dados), 
-                        ),
-                        _botaoMenu(
-                          icone: Icons.event,
-                          titulo: "Reservas\n(Salão/Churras)",
-                          cor: Colors.purple,
-                          acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaReservas())),
-                        ),
-                        _botaoMenu(
-                          icone: Icons.mark_chat_unread_outlined,
-                          titulo: "Sugestões\n& Reclamações",
-                          cor: Colors.teal,
-                          acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaSugestoes())),
-                        ),
-                        _botaoMenu(
-                          icone: Icons.gavel,
-                          titulo: "Regras do\nCondomínio",
-                          cor: Colors.brown,
-                          acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaRegras())),
-                        ),
-                      ],
+                      ),
+                    );
+                  },
+                ),
+
+                const Text("Serviços", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1B4D3E))),
+                const SizedBox(height: 16),
+
+                // --- GRADE DE MENUS ---
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  children: [
+                    _botaoMenu(
+                      icone: Icons.build_circle_outlined, 
+                      titulo: "Ocorrências\n(Chamados)", 
+                      cor: Colors.redAccent,
+                      acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaListaChamados())),
+                    ),
+                    _botaoMenu(
+                      icone: Icons.storefront,
+                      titulo: "Classificados\nInternos",
+                      cor: Colors.orange,
+                      acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaClassificados())),
+                    ),
+                    _botaoMenu(
+                      icone: Icons.directions_car,
+                      titulo: "Meus\nVeículos",
+                      cor: Colors.blueGrey,
+                      // AQUI ESTAVA O ERRO, AGORA ESTÁ CORRIGIDO:
+                      acao: () => _editarVeiculos(dadosUser), 
+                    ),
+                    _botaoMenu(
+                      icone: Icons.event,
+                      titulo: "Reservas\n(Salão/Churras)",
+                      cor: Colors.purple,
+                      acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaReservas())),
+                    ),
+                    _botaoMenu(
+                      icone: Icons.mark_chat_unread_outlined,
+                      titulo: "Sugestões\n& Reclamações",
+                      cor: Colors.teal,
+                      acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaSugestoes())),
+                    ),
+                    _botaoMenu(
+                      icone: Icons.gavel,
+                      titulo: "Regras do\nCondomínio",
+                      cor: Colors.brown,
+                      acao: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const TelaRegras())),
                     ),
                   ],
                 ),
-              );
-            },
+              ],
+            ),
           ),
         );
       },
@@ -302,14 +380,14 @@ class _HomeMoradorState extends State<HomeMorador> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: const[BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: cor.withOpacity(0.1), shape: BoxShape.circle),
+              decoration: BoxDecoration(color: cor.withValues(alpha:0.1), shape: BoxShape.circle),
               child: Icon(icone, size: 32, color: cor),
             ),
             const SizedBox(height: 12),

@@ -108,7 +108,7 @@ class TelaListaChamados extends StatelessWidget {
                 contentPadding: const EdgeInsets.all(12),
                 leading: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: corStatus.withOpacity(0.1), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: corStatus.withValues(alpha:0.1), shape: BoxShape.circle),
                   child: Icon(Icons.build, color: corStatus),
                 ),
                 title: Text(dados['titulo'] ?? 'Sem Título', style: const TextStyle(fontWeight: FontWeight.bold)),

@@ -17,7 +17,7 @@ class _TelaSugestoesState extends State<TelaSugestoes> {
   String _tipoSelecionado = 'SUGESTAO'; // ou RECLAMACAO
   bool _enviando = false;
 
-  // --- FUNÇÃO DE ENVIAR ---
+  // --- FUNÇÃO DE ENVIAR (CORRIGIDA) ---
   Future<void> _enviarFormulario() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -26,34 +26,36 @@ class _TelaSugestoesState extends State<TelaSugestoes> {
     try {
       User? user = FirebaseAuth.instance.currentUser;
       
-      // Pega dados do usuário para identificar quem mandou
+      // Pega dados do usuário
       var userDoc = await FirebaseFirestore.instance.collection('users').doc(user!.uid).get();
       String nome = userDoc.data()?['nome'] ?? 'Anônimo';
-      String unidade = userDoc.data()?['unidade_vinculada'] ?? '?';
+      
+      // AQUI ESTAVA O ERRO: troquei 'unidade_vinculada' por 'unidade'
+      String unidade = userDoc.data()?['unidade'] ?? '?'; 
       String bloco = userDoc.data()?['bloco'] ?? '?';
 
       await FirebaseFirestore.instance.collection('sugestoes').add({
         'titulo': _tituloController.text,
         'descricao': _descricaoController.text,
-        'tipo': _tipoSelecionado, // SUGESTAO ou RECLAMACAO
+        'tipo': _tipoSelecionado, 
         'autor_uid': user.uid,
         'autor_nome': nome,
-        'unidade': "$bloco-$unidade",
+        
+        // Agora salva formatado bonitinho: "Bl 1 - Ap 201"
+        'unidade': "Bl $bloco - Ap $unidade", 
+        
         'data_envio': FieldValue.serverTimestamp(),
-        'status': 'PENDENTE', // Status inicial
-        'resposta_admin': null, // Campo para o síndico responder depois
+        'status': 'PENDENTE',
+        'resposta_admin': null,
       });
 
       if (!mounted) return;
 
-      // Limpa tudo e avisa
       _tituloController.clear();
       _descricaoController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enviado com sucesso! Acompanhe na aba Histórico."), backgroundColor: Colors.green),
+        const SnackBar(content: Text("Enviado com sucesso!"), backgroundColor: Colors.green),
       );
-      
-      // (Opcional) Volta para a aba de histórico se quiser, mas aqui só limpei.
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Erro: $e")));
@@ -158,7 +160,7 @@ class _TelaSugestoesState extends State<TelaSugestoes> {
                         onPressed: _enviando ? null : _enviarFormulario,
                         child: _enviando 
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : Text("ENVIAR ${_tipoSelecionado}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                          : Text("ENVIAR $_tipoSelecionado", style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 10),

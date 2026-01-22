@@ -137,7 +137,7 @@ class _TelaAbrirChamadoState extends State<TelaAbrirChamado> {
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.place)
               ),
-              value: _localSelecionado,
+              initialValue: _localSelecionado,
               items: _locais.map((local) => DropdownMenuItem(value: local, child: Text(local))).toList(),
               onChanged: (valor) => setState(() => _localSelecionado = valor),
             ),

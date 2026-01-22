@@ -40,7 +40,7 @@ class TelaRegras extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFF1B4D3E).withOpacity(0.1),
+          backgroundColor: const Color(0xFF1B4D3E).withValues(alpha:0.1),
           child: Icon(icone, color: const Color(0xFF1B4D3E)),
         ),
         title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold)),

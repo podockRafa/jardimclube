@@ -133,7 +133,7 @@ class _TelaReservasState extends State<TelaReservas> {
           children: [
             const Text("1. Escolha o Espaço", style: TextStyle(fontWeight: FontWeight.bold)),
             DropdownButtonFormField<String>(
-              value: _localSelecionado,
+              initialValue: _localSelecionado,
               items: _locais.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
               onChanged: (v) {
                 setState(() {

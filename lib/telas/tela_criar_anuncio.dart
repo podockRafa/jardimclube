@@ -59,7 +59,9 @@ class _TelaCriarAnuncioState extends State<TelaCriarAnuncio> {
       return response.secureUrl;
 
     } catch (e) {
-      print("Erro no upload Cloudinary: $e");
+      if (kDebugMode) {
+        print("Erro no upload Cloudinary: $e");
+      }
       return null;
     }
   }

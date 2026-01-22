@@ -38,7 +38,7 @@ class _HomePortariaState extends State<HomePortaria> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Recebido para Apt $numeroApt" + (nomeMorador != null ? " ($nomeMorador)" : "") + "!"),
+          content: Text("Recebido para Apt $numeroApt${nomeMorador != null ? " ($nomeMorador)" : ""}!"),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 2),
         ),
@@ -398,7 +398,7 @@ class _HomePortariaState extends State<HomePortaria> {
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: corBorda, width: espessuraBorda),
                                   boxShadow: [
-                                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(2, 2))
+                                    BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 4, offset: const Offset(2, 2))
                                   ],
                                 ),
                                 child: Column(
@@ -436,7 +436,7 @@ class _HomePortariaState extends State<HomePortaria> {
                                         children: [
                                           if (temCarro)
                                             GestureDetector(
-                                              onTap: () => _mostrarDadosVeiculo('Carro', carro!),
+                                              onTap: () => _mostrarDadosVeiculo('Carro', carro),
                                               child: const Padding(
                                                 padding: EdgeInsets.all(4.0),
                                                 child: Icon(Icons.directions_car, size: 18, color: Colors.blue),
@@ -444,7 +444,7 @@ class _HomePortariaState extends State<HomePortaria> {
                                             ),
                                           if (temMoto)
                                             GestureDetector(
-                                              onTap: () => _mostrarDadosVeiculo('Moto', moto!),
+                                              onTap: () => _mostrarDadosVeiculo('Moto', moto),
                                               child: const Padding(
                                                 padding: EdgeInsets.all(4.0),
                                                 child: Icon(Icons.two_wheeler, size: 18, color: Colors.orange),
