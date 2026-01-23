@@ -5,9 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 
 // Importando as telas necessárias
-import 'telas/tela_login.dart';
-import 'telas/roteador_telas.dart'; // <--- O novo cérebro do app!
+import 'telas/tela_login.dart'; // Mantemos importado caso precise referenciar
+import 'telas/roteador_telas.dart'; 
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'telas/tela_landing.dart'; // <--- Importante estar aqui
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +38,7 @@ class MeuCondominioApp extends StatelessWidget {
         textTheme: GoogleFonts.latoTextTheme(),
       ),
 
-      // --- CONFIGURAÇÃO DE IDIOMA (O SEGREDO ESTÁ AQUI) ---
+      // --- CONFIGURAÇÃO DE IDIOMA ---
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -53,19 +54,20 @@ class MeuCondominioApp extends StatelessWidget {
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           
-          // Se estiver carregando (ex: abrindo o app)
+          // Se estiver carregando (ex: verificando login salvo)
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
 
-          // Se tiver usuário logado -> Manda para o Roteador
-          // (O Roteador que vai decidir se vai pra Home, Bloqueio ou Espera)
+          // CASO 1: Se tiver usuário logado -> Manda para o Sistema (Roteador)
+          // Assim o morador não precisa ver a Landing Page toda vez que abrir o app
           if (snapshot.hasData && snapshot.data != null) {
             return const RoteadorTelas();
           }
 
-          // Se NÃO tiver usuário logado -> Manda para o Login
-          return const TelaLogin();
+          // CASO 2: Se NÃO tiver usuário logado -> Manda para a Landing Page (Vitrine)
+          // Antes estava: return const TelaLogin();
+          return const TelaLandingPage(); 
         },
       ),
     );

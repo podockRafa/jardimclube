@@ -11,12 +11,12 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  url_launcher: ^6.2.0
 
   # --- FIREBASE (Banco de Dados e Login) ---
-  firebase_core: ^3.1.0  # Ajustei para uma versão estável comum, se der erro volte a sua
+  firebase_core: ^3.1.0
   firebase_auth: ^5.1.0
   cloud_firestore: ^5.0.0
-
 
   # --- DESIGN E UTILIDADES ---
   google_fonts: ^6.2.1
@@ -39,6 +39,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Suas imagens
+  # --- IMAGENS (DICA PRO) ---
+  # Ao colocar apenas a pasta com a barra "/" no final,
+  # TUDO o que você jogar lá dentro (logo, topo, icon, fotos novas)
+  # vai funcionar automaticamente no código.
   assets:
     - assets/images/

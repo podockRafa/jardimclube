@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'tela_cadastro.dart'; // Certifique-se que este arquivo existe na mesma pasta
+import 'tela_cadastro.dart'; 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TelaLogin extends StatefulWidget {
@@ -19,7 +19,6 @@ class _TelaLoginState extends State<TelaLogin> {
   bool _estaCarregando = false;
   bool _mostrarSenha = false; 
 
-  // Função para logar no Firebase
   // Função BLINDADA para logar no Firebase
   Future<void> _fazerLogin() async {
     if (_estaCarregando) return;
@@ -27,35 +26,32 @@ class _TelaLoginState extends State<TelaLogin> {
     setState(() => _estaCarregando = true);
 
     try {
-      // 1. Tenta logar com senha (O Porteiro confere a identidade)
+      // 1. Tenta logar com senha
       UserCredential credencial = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _senhaController.text.trim(),
       );
 
-      // 2. AGORA VEM A MÁGICA: Conferir o crachá (Status) no Banco de Dados
+      // 2. Confere o Status no Banco de Dados
       String uid = credencial.user!.uid;
       DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
       if (userDoc.exists) {
         Map<String, dynamic> dados = userDoc.data() as Map<String, dynamic>;
         
-        // Se o status for "AGUARDANDO_APROVACAO", nós barramos a entrada!
         if (dados['status'] == 'AGUARDANDO_APROVACAO') {
-          await FirebaseAuth.instance.signOut(); // 🚫 Logout forçado imediato!
-          
+          await FirebaseAuth.instance.signOut();
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Acesso negado: Seu cadastro aguarda aprovação do Síndico."),
               backgroundColor: Colors.orange,
-              duration: Duration(seconds: 5), // Fica mais tempo na tela pra lerem
+              duration: Duration(seconds: 5), 
             ),
           );
-          return; // Para a função aqui. Não deixa mudar de tela.
+          return; 
         }
         
-        // Se for "BLOQUEADO", também barramos
         if (dados['status'] == 'BLOQUEADO') {
            await FirebaseAuth.instance.signOut();
            if (!mounted) return;
@@ -66,33 +62,26 @@ class _TelaLoginState extends State<TelaLogin> {
         }
       }
 
-      // Se passou por tudo isso, o main.dart vai detectar o login e mudar a tela sozinho.
-
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      
       String mensagemErro = "Ocorreu um erro desconhecido.";
-      if (e.code == 'invalid-credential') {
-        mensagemErro = "E-mail ou senha incorretos.";
-      } else if (e.code == 'invalid-email') {
-        mensagemErro = "O formato do e-mail é inválido.";
-      } else {
-        mensagemErro = e.message ?? mensagemErro;
-      }
+      if (e.code == 'invalid-credential') mensagemErro = "E-mail ou senha incorretos.";
+      else if (e.code == 'invalid-email') mensagemErro = "O formato do e-mail é inválido.";
+      else mensagemErro = e.message ?? mensagemErro;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Erro: $mensagemErro"), backgroundColor: Colors.red),
       );
     } finally {
-      if (mounted) {
-        setState(() => _estaCarregando = false);
-      }
+      if (mounted) setState(() => _estaCarregando = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Pegamos a largura da tela para decidir o tamanho
     final larguraTela = MediaQuery.of(context).size.width;
+    final bool isDesktop = larguraTela > 600;
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -103,24 +92,20 @@ class _TelaLoginState extends State<TelaLogin> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // --- LOGO ---
-              const Icon(Icons.apartment_rounded, size: 80, color: Color(0xFF1B4D3E)),
-              const SizedBox(height: 20),
-              
-              const Text(
-                "JARDIM CLUBE",
-                style: TextStyle(
-                  fontSize: 28, 
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B4D3E),
-                  letterSpacing: 1.5,
-                ),
+              // --- LOGO RESPONSIVO ---
+              Image.asset(
+                'assets/images/logo-verde.png',
+                
+                height: isDesktop ? 300 : 250, 
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
               ),
+              
               const SizedBox(height: 40),
 
               // --- CARTÃO DE LOGIN ---
               Container(
-                width: larguraTela > 600 ? 400 : double.infinity,
+                width: isDesktop ? 400 : double.infinity,
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -202,7 +187,7 @@ class _TelaLoginState extends State<TelaLogin> {
 
                     const SizedBox(height: 30),
 
-                    // --- RODAPÉ DE CADASTRO (Agora no lugar certo!) ---
+                    // --- RODAPÉ DE CADASTRO ---
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
